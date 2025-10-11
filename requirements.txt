@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+chromadb
+google-cloud-secret-manager
+google-cloud-aiplatform
+langgraph
+pandas
+numpy
+streamlit
+requests

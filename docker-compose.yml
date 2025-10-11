@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  chroma:
+    image: ghcr.io/chroma-core/chroma:latest
+    container_name: chroma_service
+    ports:
+      - "8000:8000"
+    environment:
+      CHROMA_DB_DIR: /data/chroma
+    volumes:
+      - chroma_data:/data/chroma
+    restart: unless-stopped
+
+  backend:
+    build: .
+    container_name: loan_navigator_backend
+    ports:
+      - "8000:8000"
+    environment:
+      LOAN_DB_BUCKET: "loan-navigator-data-6-1"
+      LOAN_DB_BLOB: "LoanDB_BlueLoans4all.sqlite"
+      CHROMA_URL: "http://chroma:8000"
+      GCP_PROJECT: "bdc-training"
+      GCP_REGION: "us-central1"
+      VERTEX_AI_MODEL: "gemini-2.0-flash"
+    depends_on:
+      - chroma
+    restart: unless-stopped
+
+  streamlit:
+    build: .
+    container_name: loan_navigator_ui
+    command: streamlit run ui/app.py --server.port=8501 --server.address=0.0.0.0
+    ports:
+      - "8501:8501"
+    environment:
+      CHROMA_URL: "http://chroma:8000"
+      GCP_PROJECT: "bdc-training"
+      VERTEX_AI_MODEL: "gemini-2.0-flash"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  chroma_data:
