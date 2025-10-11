@@ -80,6 +80,25 @@ This project introduces a **multi-agent AI system** that combines **natural lang
 
 ## Deployment
 
+### Local Development
+
+Update .env file in local environment folder
+
+```bash
+GOOGLE_API_KEY="your key"
+GOOGLE_GENAI_USE_VERTEXAI=True
+GOOGLE_CLOUD_PROJECT=bdc-trainings
+GCP_REGION="us-central1"
+GCP_PROJECT="bdc-training"
+
+TAVILY_API_KEY="your key"
+LOAN_DB_BUCKET="loan-navigator-data-6-1"
+LOAN_DB_BLOB="LoanDB_BlueLoans4all.sqlite"
+
+VERTEX_AI_MODEL="gemini-2.0-flash"
+CHROMA_URL="https://chroma-service-xxxx.a.run.app"
+```
+
 ### 1. Build Container
 
 ```bash
