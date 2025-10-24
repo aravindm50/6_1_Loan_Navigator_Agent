@@ -2,25 +2,27 @@
 
 import os
 import requests
+import logging
 from typing import List, Dict
 from google.cloud import aiplatform
 from dotenv import load_dotenv
 
-# -----------------------------
-# PolicyGuruAgent Class
-# -----------------------------
+load_dotenv()
+logging.basicConfig(level=logging.INFO)
+
 class PolicyGuruAgent:
     """
     Policy Guru Agent: 
     Performs RAG-based policy lookups using Chroma vector DB 
-    and synthesizes answers via Vertex AI Gemini.
+    and synthesizes answers via Vertex AI Gemini using aiplatform SDK.
     """
 
     def __init__(self):
-        self.chroma_url = os.getenv("CHROMA_URL")  # e.g. https://chroma-service-xxxx.a.run.app
+        self.chroma_url = os.getenv("CHROMA_URL")  # e.g., http://localhost:8000
         self.project = os.getenv("GCP_PROJECT")
         self.location = os.getenv("GCP_REGION", "us-central1")
         self.model = os.getenv("VERTEX_AI_MODEL", "gemini-2.0-flash")
+        self.confidence_threshold = 0.75
 
         # Initialize Vertex AI
         aiplatform.init(project=self.project, location=self.location)
@@ -37,31 +39,19 @@ class PolicyGuruAgent:
             "query_texts": [question],
             "n_results": top_k
         }
-
         try:
             response = requests.post(endpoint, json=payload)
             response.raise_for_status()
             results = response.json()
-            # Each result contains: 'id', 'document', 'metadata', 'score'
             return results.get("results", [])[0].get("documents", [])
         except Exception as e:
-            print(f"Error querying Chroma: {e}")
+            logging.error(f"Error querying Chroma: {e}")
             return []
 
     # -----------------------------
-    # Use Vertex AI to synthesize answer
+    # Synthesize answer using Vertex AI SDK
     # -----------------------------
     def synthesize_answer(self, question: str, contexts: List[str]) -> Dict:
-        """
-        Use Gemini to synthesize answer with retrieved contexts
-        """
-        from google.cloud.aiplatform.gapic.schema import predict
-        from google.cloud.aiplatform.gapic import PredictionServiceClient
-        from google.protobuf import json_format
-
-        client = PredictionServiceClient()
-        endpoint = f"projects/{self.project}/locations/{self.location}/models/{self.model}"
-
         context_text = "\n\n".join(contexts)
         prompt = f"""
         You are an expert financial assistant. Use the following policy documents
@@ -74,19 +64,26 @@ class PolicyGuruAgent:
         {question}
 
         Answer concisely with citations.
+        If you cannot answer confidently, respond with: "Cannot answer confidently."
         """
 
-        instance = {"content": prompt}
-        instances = [json_format.ParseDict(instance, predict.instance.Instance())]
+        try:
+            # Use Vertex AI Text Generation
+            response = aiplatform.TextGenerationModel.from_pretrained(self.model).predict(
+                prompt,
+                max_output_tokens=500,
+                temperature=0.2
+            )
+            answer = response.text.strip()
 
-        response = client.predict(endpoint=endpoint, instances=instances)
-        predictions = response.predictions
+            if "Cannot answer confidently" in answer or not answer:
+                return {"answer": "Fallback: need more context or document.", "fallback": True}
+            else:
+                return {"answer": answer, "contexts": contexts, "fallback": False}
 
-        if predictions and len(predictions) > 0:
-            answer = predictions[0].get("content", "").strip()
-            return {"answer": answer, "contexts": contexts}
-        else:
-            return {"answer": "Sorry, I could not find relevant policy information.", "contexts": []}
+        except Exception as e:
+            logging.error(f"Vertex AI synthesis failed: {e}")
+            return {"answer": "Error synthesizing policy.", "fallback": True}
 
     # -----------------------------
     # Main entry: handle query
@@ -94,6 +91,8 @@ class PolicyGuruAgent:
     def handle_query(self, user_question: str, top_k: int = 5) -> Dict:
         retrieved_docs = self.query_chroma(user_question, top_k=top_k)
         contexts = [doc.get("document", "") for doc in retrieved_docs]
+        if not contexts:
+            return {"answer": "No relevant policy documents found.", "fallback": True}
         result = self.synthesize_answer(user_question, contexts)
         return result
 
@@ -102,9 +101,6 @@ class PolicyGuruAgent:
 # Example usage
 # -----------------------------
 if __name__ == "__main__":
-
-    load_dotenv()
-
     agent = PolicyGuruAgent()
     question = "Can I prepay my loan without penalty?"
     result = agent.handle_query(question)
