@@ -1,5 +1,10 @@
 import os
+import sys
 import streamlit as st
+
+# add parent folder (project root) to sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from supervisor.supervisor_agent import SupervisorAgent
 
 # -----------------------------

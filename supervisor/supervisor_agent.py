@@ -4,6 +4,10 @@ import os
 from typing import Dict
 from dotenv import load_dotenv
 
+import sys
+# add parent folder (project root) to sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from agents.sql_agent import SQLAgent
 from agents.policy_agent import PolicyGuruAgent
 from agents.calc_agent import WhatIfCalculatorAgent

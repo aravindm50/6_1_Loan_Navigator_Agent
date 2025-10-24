@@ -49,7 +49,9 @@ if __name__ == "__main__":
         "Can I prepay my loan?",
         "Am I eligible for a top-up?",
         "What is the RBI guideline on prepayment penalties?",
-        "Tell me something random"
+        "Tell me something random",
+        "Where is Blue Fin consulting",
+        "Do I need to pay my loan ?"
     ]
 
     for q in queries:
