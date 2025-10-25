@@ -1,49 +1,77 @@
 # agents/intent_classifier.py
 
 from typing import Literal
+import os
+from vertexai import init
+from vertexai.generative_models import GenerativeModel
+
+# Define the allowed intents
+Intents = Literal[
+    "sql_emi",
+    "calc_prepayment",
+    "calc_topup",
+    "policy_query",
+    "general_query"
+]
 
 
 class IntentClassifier:
     """
-    Simple keyword-based intent classifier for Loan Navigator queries.
-    Returns one of:
-        - 'sql_emi'
-        - 'calc_prepayment'
-        - 'calc_topup'
-        - 'policy_query'
-        - 'general_query'
+    LLM-based intent classifier using Vertex AI Gemini 2.0 Flash.
+    Classifies user queries into intents for the Loan Navigator app.
     """
 
-    def __init__(self):
-        # Keywords for each intent
-        self.intent_keywords = {
-            "sql_emi": ["emi", "next installment", "monthly payment", "installment due"],
-            "calc_prepayment": ["prepay", "prepayment", "partial payment", "early repayment"],
-            "calc_topup": ["top-up", "topup", "eligibility", "add loan"],
-            "policy_query": ["policy", "rbi", "rule", "guideline", "regulation"],
+    def __init__(self, project_id: str = os.getenv("GCP_PROJECT"), location: str = os.getenv("GCP_REGION")):
+        init(project=project_id, location=location)
+        self.model = GenerativeModel("gemini-2.0-flash")
+
+        # Intent definitions for grounding
+        self.intent_definitions = {
+            "sql_emi": "Questions about EMI, next installment, or monthly payment.",
+            "calc_prepayment": "Questions about prepayment, early repayment, or partial payments.",
+            "calc_topup": "Questions about loan top-ups, additional eligibility, or adding a new loan.",
+            "policy_query": "Questions about RBI rules, loan policies, or regulations.",
+            "general_query": "Anything else not covered by the above categories."
         }
 
-    def classify_intent(self, query: str) -> Literal[
-        "sql_emi", "calc_prepayment", "calc_topup", "policy_query", "general_query"
-    ]:
+    def classify_intent(self, query: str) -> Intents:
         """
-        Classify user query into one of the intents.
-        Fallback: 'general_query'
+        Use the Gemini LLM to classify a user query into one of the intents.
         """
-        query_lower = query.lower()
+        system_prompt = (
+            "You are an intent classifier for a Loan Navigator application. "
+            "Given a user's question, classify it into exactly one of the following intents:\n\n"
+        )
 
-        for intent, keywords in self.intent_keywords.items():
-            if any(word in query_lower for word in keywords):
-                return intent
+        for k, v in self.intent_definitions.items():
+            system_prompt += f"- {k}: {v}\n"
 
-        return "general_query"
+        system_prompt += (
+            "\nRespond ONLY with one of these labels (no explanation): "
+            "sql_emi, calc_prepayment, calc_topup, policy_query, general_query."
+        )
+
+        # Send both system + user text as plain strings (correct Vertex SDK format)
+        response = self.model.generate_content(
+            [system_prompt, f"User query: {query}"],
+            generation_config={
+                "temperature": 0.0,
+                "max_output_tokens": 20,
+            },
+        )
+
+        intent = response.text.strip().lower()
+        if intent not in self.intent_definitions:
+            intent = "general_query"
+        return intent
 
 
 # -----------------------------
 # Example usage
 # -----------------------------
 if __name__ == "__main__":
-    classifier = IntentClassifier()
+    classifier = LLMIntentClassifier(project_id="bdc-trainings")
+
     queries = [
         "What is my next EMI?",
         "Can I prepay my loan?",
@@ -51,7 +79,7 @@ if __name__ == "__main__":
         "What is the RBI guideline on prepayment penalties?",
         "Tell me something random",
         "Where is Blue Fin consulting",
-        "Do I need to pay my loan ?"
+        "Do I need to pay my loan?"
     ]
 
     for q in queries:
