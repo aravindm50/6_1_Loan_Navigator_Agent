@@ -1,11 +1,15 @@
 from chromadb import HttpClient
 from chromadb.utils import embedding_functions
 import glob, fitz, os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # -----------------------------
 # 1️⃣ Connect to remote Chroma server
 # -----------------------------
 chroma_host = os.getenv("CHROMA_URL")  # Cloud Run URL
+print(chroma_host)
 client = HttpClient(host=chroma_host)
 
 # -----------------------------
@@ -20,9 +24,9 @@ ef = embedding_functions.SentenceTransformerEmbeddingFunction("all-MiniLM-L6-v2"
 # are usually handled before calling `add` if needed
 collection_name = "policy_docs"
 try:
-    client.create_collection(name=collection_name)
-except Exception:
-    pass  # collection already exists
+    collection = client.get_collection(name=collection_name)
+except:
+    collection = client.create_collection(name=collection_name, embedding_function=ef)
 
 # -----------------------------
 # 4️⃣ Upload PDFs
@@ -30,12 +34,14 @@ except Exception:
 for file_path in glob.glob("data/policy_docs/*.pdf"):
     doc = fitz.open(file_path)
     text = "\n".join(page.get_text() for page in doc)
-
-    payload = {
-        "documents": [text],
-        "ids": [os.path.basename(file_path)],
-        "metadatas": [{"source": os.path.basename(file_path)}]
-    }
-
-    client.add(collection_name, **payload)
-    print(f"Uploaded: {file_path}")
+    doc_id = os.path.basename(file_path)
+    
+    collection.add(
+        documents=[text],
+        ids=[doc_id],
+    )
+print("Documents uploaded successfully!")
+question = "Can I prepay my loan without penalty?"
+results = collection.query(query_texts=[question], n_results=5)
+documents = results.get("documents", [[]])[0]
+print("Retrieved docs:", documents)

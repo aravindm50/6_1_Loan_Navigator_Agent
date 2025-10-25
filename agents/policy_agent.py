@@ -1,81 +1,102 @@
 # agents/policy_agent.py
 
 import os
-import requests
 import logging
 from typing import List, Dict
-from google.cloud import aiplatform
 from dotenv import load_dotenv
+from chromadb import HttpClient
+from vertexai import init
+from vertexai.generative_models import GenerativeModel
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
 
+
 class PolicyGuruAgent:
     """
-    Policy Guru Agent: 
-    Performs RAG-based policy lookups using Chroma vector DB 
-    and synthesizes answers via Vertex AI Gemini using aiplatform SDK.
+    Policy Guru Agent:
+    Performs RAG-based policy lookups using Chroma vector DB
+    and synthesizes answers via Vertex AI Gemini using GenerativeModel.
+    Implements a confidence threshold for fallback.
     """
 
     def __init__(self):
-        self.chroma_url = os.getenv("CHROMA_URL")  # e.g., http://localhost:8000
-        self.project = os.getenv("GCP_PROJECT")
-        self.location = os.getenv("GCP_REGION", "us-central1")
-        self.model = os.getenv("VERTEX_AI_MODEL", "gemini-2.0-flash")
-        self.confidence_threshold = 0.75
+        # -----------------------------
+        # Chroma DB settings
+        # -----------------------------
+        self.chroma_host = os.getenv("CHROMA_URL")
+        self.collection_name = "policy_docs"
 
+        # -----------------------------
+        # Vertex AI settings
+        # -----------------------------
+        self.project = os.getenv("GCP_PROJECT")
+        self.location = os.getenv("GCP_REGION")
+        self.model_name = os.getenv("VERTEX_AI_MODEL")
+        self.confidence_threshold = float(os.getenv("CONFIDENCE_THRESHOLD", 0.75))
+
+        # -----------------------------
+        # Initialize services
+        # -----------------------------
         # Initialize Vertex AI
-        aiplatform.init(project=self.project, location=self.location)
+        # Initialize Vertex AI
+        init(project=self.project, location=self.location)
+
+        # Correct way to initialize
+        self.model = GenerativeModel(model_name=self.model_name)
+
+        # Initialize Chroma client
+        self.client = HttpClient(host=self.chroma_host)
 
     # -----------------------------
     # Query Chroma Vector DB
     # -----------------------------
     def query_chroma(self, question: str, top_k: int = 5) -> List[Dict]:
-        """
-        Send query to Chroma DB REST API and return top-k relevant chunks
-        """
-        endpoint = f"{self.chroma_url}/collections/policy_docs/query"
-        payload = {
-            "query_texts": [question],
-            "n_results": top_k
-        }
         try:
-            response = requests.post(endpoint, json=payload)
-            response.raise_for_status()
-            results = response.json()
-            return results.get("results", [])[0].get("documents", [])
+            collection = self.client.get_collection(self.collection_name)
+            results = collection.query(query_texts=[question], n_results=top_k)
+            documents = results.get("documents", [[]])[0]
+            metadatas = results.get("metadatas", [[]])[0]
+            # Combine doc + metadata
+            return [{"document": d, "metadata": m} for d, m in zip(documents, metadatas)]
         except Exception as e:
             logging.error(f"Error querying Chroma: {e}")
             return []
 
     # -----------------------------
-    # Synthesize answer using Vertex AI SDK
+    # Synthesize answer using Vertex AI
     # -----------------------------
     def synthesize_answer(self, question: str, contexts: List[str]) -> Dict:
+        if not contexts:
+            return {"answer": "No relevant policy documents found.", "fallback": True}
+
         context_text = "\n\n".join(contexts)
         prompt = f"""
-        You are an expert financial assistant. Use the following policy documents
-        to answer the user's question accurately and cite sources when possible.
+You are an expert financial assistant. Use the following policy documents
+to answer the user's question accurately and cite sources when possible.
 
-        Contexts:
-        {context_text}
+Contexts:
+{context_text}
 
-        Question:
-        {question}
+Question:
+{question}
 
-        Answer concisely with citations.
-        If you cannot answer confidently, respond with: "Cannot answer confidently."
-        """
+Answer concisely with citations.
+If unsure or low confidence, respond with "Cannot answer confidently."
+"""
 
         try:
-            # Use Vertex AI Text Generation
-            response = aiplatform.TextGenerationModel.from_pretrained(self.model).predict(
-                prompt,
-                max_output_tokens=500,
-                temperature=0.2
+            response = self.model.generate_content(
+                [prompt],
+                generation_config={
+                    "temperature": 0.2,
+                    "max_output_tokens": 500,
+                },
             )
+
             answer = response.text.strip()
 
+            # Check for fallback
             if "Cannot answer confidently" in answer or not answer:
                 return {"answer": "Fallback: need more context or document.", "fallback": True}
             else:
@@ -86,15 +107,17 @@ class PolicyGuruAgent:
             return {"answer": "Error synthesizing policy.", "fallback": True}
 
     # -----------------------------
-    # Main entry: handle query
+    # Handle user query
     # -----------------------------
     def handle_query(self, user_question: str, top_k: int = 5) -> Dict:
         retrieved_docs = self.query_chroma(user_question, top_k=top_k)
         contexts = [doc.get("document", "") for doc in retrieved_docs]
-        if not contexts:
+
+        # Apply confidence threshold: if no docs or too few, fallback
+        if not contexts or len(contexts) < 1:
             return {"answer": "No relevant policy documents found.", "fallback": True}
-        result = self.synthesize_answer(user_question, contexts)
-        return result
+
+        return self.synthesize_answer(user_question, contexts)
 
 
 # -----------------------------

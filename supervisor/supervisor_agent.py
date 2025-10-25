@@ -1,11 +1,17 @@
 # supervisor/supervisor_agent.py
 
+import re
+import sys
+import os
+
+# Add project root to path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 import logging
 from agents.sql_agent import SQLAgent
 from agents.policy_agent import PolicyGuruAgent
 from agents.calc_agent import WhatIfCalculatorAgent
 from agents.intent_classifier import IntentClassifier
-import re
 
 logging.basicConfig(level=logging.INFO)
 
@@ -124,3 +130,23 @@ class SupervisorAgent:
         # -----------------------------
         logging.info(f"Response: {response}")
         return response
+
+# supervisor_agent.py
+
+if __name__ == "__main__":
+    from agents.intent_classifier import IntentClassifier
+    from agents.sql_agent import SQLAgent
+    from agents.policy_agent import PolicyGuruAgent
+
+    supervisor = SupervisorAgent()
+
+    queries = [
+        "What is my next EMI?",
+        "Can I prepay my loan without penalty?",
+        "Am I eligible for a top-up?",
+        "Tell me the RBI guideline on prepayment."
+    ]
+
+    for q in queries:
+        result = supervisor.handle_query(q)
+        print(f"Query: {q}\nResult: {result}\n")
