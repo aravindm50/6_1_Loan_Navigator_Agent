@@ -1,50 +1,33 @@
-from fastapi import FastAPI, HTTPException
+# main.py
+from fastapi import FastAPI
 from pydantic import BaseModel
-from typing import Optional, Dict
+from supervisor.supervisor_agent import SupervisorAgent
+import logging
+
 import os
 import sys
+# Add project root to Python path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), ".")))
-from supervisor.supervisor_agent import SupervisorAgent
+logging.basicConfig(level=logging.INFO)
 
-# -----------------------------
-# Request / Response Models
-# -----------------------------
-class QueryRequest(BaseModel):
-    user_query: str
-    context: Optional[Dict] = {}
-
-class QueryResponse(BaseModel):
-    answer: str
-    intent: Optional[str] = None
-    fallback: bool = False
-    missing_fields: Optional[list] = None
-    context: Dict
-
-# -----------------------------
-# FastAPI app
-# -----------------------------
 app = FastAPI(title="Loan Navigator API")
-
-# Initialize Supervisor Agent
 agent = SupervisorAgent()
 
-# -----------------------------
-# API endpoint
-# -----------------------------
-@app.post("/query", response_model=QueryResponse)
-def handle_query(request: QueryRequest):
+class QueryRequest(BaseModel):
+    query: str
+    context: dict = {}
+
+@app.post("/query")  # make sure it's POST, not GET
+def query_endpoint(req: QueryRequest):
     try:
-        result = agent.handle_query(request.user_query, context=request.context)
-        return QueryResponse(
-            answer=result.get("answer", "No answer available."),
-            intent=result.get("intent"),
-            fallback=result.get("fallback", False),
-            missing_fields=result.get("missing_fields", []),
-            context=result.get("context", {})
-        )
+        result = agent.handle_query(req.query, context=req.context)
+        return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error processing query: {str(e)}")
+        logging.error(f"Error in /query: {e}")
+        return {"error": str(e)}
+
+
 
 # -----------------------------
 # Health check endpoint

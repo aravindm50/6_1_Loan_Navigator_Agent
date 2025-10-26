@@ -18,4 +18,4 @@ ENV GCP_REGION="us-central1"
 ENV VERTEX_AI_MODEL="gemini-2.0-flash"
 
 # Run FastAPI server
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
