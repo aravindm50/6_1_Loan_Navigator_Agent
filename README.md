@@ -127,7 +127,8 @@ POST /ask
 ### Request:
 
 ``` json
-{ "query": "Can I prepay my loan early?" }
+{ "query": "Can I prepay my loan early?",
+"context": "" }
 ```
 
 ### Response:
@@ -164,5 +165,9 @@ POST /ask
 
 ## Maintainers
 
-- **Capstone Team** – 
+- **Capstone Team** – Aravind Madan Mohan, Naveen Babu Sanapala, Yash Singh, Mainak Paul, Piyush Rai
 - **Tech Stack**: Python · Vertex AI · LangGraph · ChromaDB · FastAPI · GCP Cloud Run
+
+## Chroma DB Readme
+
+[a relative link](6_1_Loan_Navigator_Agent/chroma_service/README.md)
