@@ -1,2 +1,4 @@
 *\.env
 *\chroma-data\*
+*__pycache__
+*.pyc

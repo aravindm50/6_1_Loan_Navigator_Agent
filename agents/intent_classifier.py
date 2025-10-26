@@ -7,13 +7,13 @@ from vertexai.generative_models import GenerativeModel
 
 # Define the allowed intents
 Intents = Literal[
-    "sql_emi",
-    "calc_prepayment",
-    "calc_topup",
-    "policy_query",
-    "general_query"
+    "calc_emi",         # generic EMI calculations
+    "calc_prepayment",  # prepayment / early repayment
+    "calc_topup",       # top-up eligibility
+    "policy_query",     # RBI or policy-related
+    "sql_fetch",        # fetch user-specific loan data
+    "general_query"     # anything else
 ]
-
 
 class IntentClassifier:
     """
@@ -27,10 +27,11 @@ class IntentClassifier:
 
         # Intent definitions for grounding
         self.intent_definitions = {
-            "sql_emi": "Questions about EMI, next installment, or monthly payment.",
+            "calc_emi": "Questions about generic EMI calculation for a given loan amount, interest rate, and tenure.",
             "calc_prepayment": "Questions about prepayment, early repayment, or partial payments.",
             "calc_topup": "Questions about loan top-ups, additional eligibility, or adding a new loan.",
             "policy_query": "Questions about RBI rules, loan policies, or regulations.",
+            "sql_fetch": "Queries that need specific customer loan data from the database.",
             "general_query": "Anything else not covered by the above categories."
         }
 
@@ -40,18 +41,17 @@ class IntentClassifier:
         """
         system_prompt = (
             "You are an intent classifier for a Loan Navigator application. "
-            "Given a user's question, classify it into exactly one of the following intents:\n\n"
+            "Classify the user's query into exactly one of the following intents:\n\n"
         )
 
         for k, v in self.intent_definitions.items():
             system_prompt += f"- {k}: {v}\n"
 
         system_prompt += (
-            "\nRespond ONLY with one of these labels (no explanation): "
-            "sql_emi, calc_prepayment, calc_topup, policy_query, general_query."
+            "\nRespond ONLY with one label (no explanation): "
+            "calc_emi, calc_prepayment, calc_topup, policy_query, sql_fetch, general_query."
         )
 
-        # Send both system + user text as plain strings (correct Vertex SDK format)
         response = self.model.generate_content(
             [system_prompt, f"User query: {query}"],
             generation_config={
@@ -70,16 +70,15 @@ class IntentClassifier:
 # Example usage
 # -----------------------------
 if __name__ == "__main__":
-    classifier = LLMIntentClassifier(project_id="bdc-trainings")
+    classifier = IntentClassifier(project_id="bdc-trainings")
 
     queries = [
         "What is my next EMI?",
         "Can I prepay my loan?",
         "Am I eligible for a top-up?",
         "What is the RBI guideline on prepayment penalties?",
-        "Tell me something random",
-        "Where is Blue Fin consulting",
-        "Do I need to pay my loan?"
+        "Calculate EMI for loan 75000 at 12% for 12 months",
+        "Where is Blue Fin consulting?"
     ]
 
     for q in queries:
