@@ -16,6 +16,7 @@ ENV CHROMA_URL="https://chroma-service-456822750436.us-central1.run.app"
 ENV GCP_PROJECT="bdc-trainings"
 ENV GCP_REGION="us-central1"
 ENV VERTEX_AI_MODEL="gemini-2.0-flash"
+ENV GOOGLE_GENAI_USE_VERTEXAI=True 
 
 # Run FastAPI server
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
