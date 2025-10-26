@@ -170,4 +170,4 @@ POST /ask
 
 ## Chroma DB Readme
 
-[a relative link](6_1_Loan_Navigator_Agent/chroma_service/README.md)
+[a relative link](chroma_service/README.md)
