@@ -7,7 +7,10 @@ from dotenv import load_dotenv
 from chromadb import HttpClient
 from vertexai import init
 from vertexai.generative_models import GenerativeModel
-
+# Add project root to Python path
+import sys 
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from scripts.create_vector_db import create_vector_chromadb
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
 
@@ -52,6 +55,7 @@ class PolicyGuruAgent:
     # Query Chroma Vector DB
     # -----------------------------
     def query_chroma(self, question: str, top_k: int = 5) -> List[Dict]:
+        create_vector_chromadb()
         try:
             collection = self.client.get_collection(self.collection_name)
             results = collection.query(query_texts=[question], n_results=top_k)

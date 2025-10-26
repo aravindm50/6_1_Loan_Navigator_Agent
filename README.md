@@ -59,8 +59,8 @@ This project introduces a **multi-agent AI system** that combines **natural lang
 - **Cloud Platform:** Google Cloud Platform (GCP)  
 - **AI Service:** Vertex AI (Gemini Models)  
 - **Agent Framework:** LangGraph / CrewAI  
-- **Vector DB:** Chroma / Pinecone  
-- **Backend:** FastAPI  
+- **Vector DB:** Chroma / Pinecone  --> https://chroma-service-XXXXXXXX.us-central1.run.app
+- **Backend:** FastAPI  --> https://loan-navigator-XXXXXXXXX.us-central1.run.app
 - **Deployment:** Docker + Cloud Run + Artifact Registry  
 - **Monitoring:** Google Cloud Operations Suite, Langfuse / MLflow  
 - **Secrets:** Google Secret Manager  
@@ -171,3 +171,5 @@ POST /ask
 ## Chroma DB Readme
 
 [a relative link](chroma_service/README.md)
+
+

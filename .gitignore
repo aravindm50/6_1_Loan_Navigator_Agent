@@ -2,9 +2,10 @@
 .venv/*
 venv/*
 
-*\chroma-data\*
-*\chroma-data\*
+*/chroma-data/*
+*/chroma-data/*
 *__pycache__
 *.pyc
 */service-account.json
 service-account.json
+chroma_service/chroma_data/*

@@ -1,29 +1,30 @@
 FROM python:3.11-slim
-
+ 
+# Set working directory
 WORKDIR /app
+ 
+# Copy requirements if you have any (optional)
 COPY . .
-
-# Install build tools
+ 
+# Install dependencies and required system packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    cmake \
-    git \
     curl \
-    python3-venv \
-    && rm -rf /var/lib/apt/lists/*
-
-# Upgrade pip and install chromadb CLI & dependencies
+    fuse \
+&& rm -rf /var/lib/apt/lists/*
+ 
+# Install ChromaDB server
 RUN pip install --upgrade pip && \
-    pip install --no-cache-dir \
-        chromadb[server]==0.4.3 \
-        sentence-transformers \
-        PyMuPDF==1.22.5
+    pip install --no-cache-dir "chromadb" 
+# Chroma persistent path (inside container)
+ENV CHROMA_PATH="/app/chroma_data"
+RUN mkdir -p $CHROMA_PATH
+VOLUME ["$CHROMA_PATH"]
+ 
+# Expose the port Cloud Run uses
+ENV PORT=8000
+EXPOSE $PORT
+ 
+# Start ChromaDB server
+CMD ["chroma", "run", "--host", "0.0.0.0", "--port", "8000", "--path", "/app/chroma_data"]
 
-EXPOSE 8000
-
-# Copy startup script
-COPY start_chroma.sh /app/start_chroma.sh
-RUN chmod +x /app/start_chroma.sh
-
-# Start ChromaDB server and populate vector DB at runtime
-CMD ["/app/start_chroma.sh"]
+ 

@@ -9,7 +9,7 @@ numpy
 streamlit
 streamlit_chat
 requests
-fitz
-frontend
 uvicorn[standard]
 pydantic
+pymupdf
+sentence_transformers
