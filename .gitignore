@@ -2,3 +2,5 @@
 *\chroma-data\*
 *__pycache__
 *.pyc
+*/service-account.json
+service-account.json
