@@ -18,5 +18,6 @@ ENV GCP_REGION="us-central1"
 ENV VERTEX_AI_MODEL="gemini-2.0-flash"
 ENV GOOGLE_GENAI_USE_VERTEXAI=True 
 
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
 # Run FastAPI server
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
