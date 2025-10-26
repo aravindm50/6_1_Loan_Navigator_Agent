@@ -177,7 +177,7 @@ POST /ask
 
 ```bash
 curl -X 'POST' \
-  'https://loan-navigator-456822750436.us-central1.run.app/query' \
+  'https://loan-navigator-XXXXX.us-central1.run.app/query' \
   -H 'accept: application/json' \
   -H 'Content-Type: application/json' \
   -d '{
