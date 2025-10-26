@@ -89,7 +89,7 @@ GOOGLE_API_KEY="your key"
 GOOGLE_GENAI_USE_VERTEXAI=True
 GOOGLE_CLOUD_PROJECT=bdc-trainings
 GCP_REGION="us-central1"
-GCP_PROJECT="bdc-training"
+GCP_PROJECT="bdc-trainings"
 
 TAVILY_API_KEY="your key"
 LOAN_DB_BUCKET="loan-navigator-data-6-1"

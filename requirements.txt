@@ -7,4 +7,5 @@ langgraph
 pandas
 numpy
 streamlit
+streamlit_chat
 requests

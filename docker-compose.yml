@@ -21,7 +21,7 @@ services:
       LOAN_DB_BUCKET: "loan-navigator-data-6-1"
       LOAN_DB_BLOB: "LoanDB_BlueLoans4all.sqlite"
       CHROMA_URL: "http://chroma:8000"
-      GCP_PROJECT: "bdc-training"
+      GCP_PROJECT: "bdc-trainings"
       GCP_REGION: "us-central1"
       VERTEX_AI_MODEL: "gemini-2.0-flash"
     depends_on:
@@ -36,7 +36,7 @@ services:
       - "8501:8501"
     environment:
       CHROMA_URL: "http://chroma:8000"
-      GCP_PROJECT: "bdc-training"
+      GCP_PROJECT: "bdc-trainings"
       VERTEX_AI_MODEL: "gemini-2.0-flash"
     depends_on:
       - backend

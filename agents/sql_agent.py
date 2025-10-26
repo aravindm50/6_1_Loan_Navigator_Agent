@@ -7,7 +7,6 @@ from google.cloud import storage
 from dotenv import load_dotenv
 from google import genai
 from google.genai.types import HttpOptions
-import re
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -75,17 +74,50 @@ class SQLAgent:
             columns_str = ", ".join([f"{col} ({dtype})" for col, dtype in schema.items()])
             prompt_parts.append(f"Table '{table}' with columns: {columns_str}")
         return "\n".join(prompt_parts)
+    
+    def validate_customer_id(self, customer_id: str) -> bool:
+        try:
+            conn = self._connect()
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1 FROM loan_data WHERE customer_id = ? LIMIT 1;", (customer_id,))
+            exists = cursor.fetchone() is not None
+            conn.close()
+            return exists
+        except Exception as e:
+            logging.error(f"Error validating customer_id {customer_id}: {e}")
+            return False
 
-    def nl_to_sql(self, user_query):
+    def validate_loan_id(self, loan_id: str) -> bool:
+        try:
+            conn = self._connect()
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1 FROM loan_data WHERE loan_id = ? LIMIT 1;", (loan_id,))
+            exists = cursor.fetchone() is not None
+            conn.close()
+            return exists
+        except Exception as e:
+            logging.error(f"Error validating loan_id {loan_id}: {e}")
+            return False
+
+
+    def nl_to_sql(self, user_query, context=None):
+        """
+        Convert natural language query to SQL, optionally using context (e.g., customer_id)
+        """
+        context = context or {}
         schema_description = self.build_schema_prompt()
+        print(schema_description)
         prompt = f"""
         You are a SQL generator with knowledge of the database schema below.
         Identify relevant tables/columns for the user question.
+        Include context filters where available.
 
         Database schema:
         {schema_description}
 
         Question: {user_query}
+
+        Context: {context}
 
         Rules:
         1. Only include relevant columns.
@@ -118,13 +150,47 @@ class SQLAgent:
             logging.error(f"SQL execution failed: {e}")
             return {"error": str(e)}
 
-    def handle_query(self, user_query):
+    def handle_query(self, user_query, context=None):
+        context = context or {}
+        customer_id = context.get("customer_id")
+        loan_id = context.get("loan_id")
+
+        # Check if either customer_id or loan_id is provided
+        if not customer_id and not loan_id:
+            return {
+                "fallback": True,
+                "answer": "Missing info. Please provide customer_id or loan_id.",
+                "missing_fields": ["customer_id", "loan_id"]
+            }
+
+        # Validate customer_id or loan_id in DB
+        conn = self._connect()
+        cursor = conn.cursor()
+        if customer_id:
+            cursor.execute("SELECT * FROM loan_data WHERE customer_id=?", (customer_id,))
+            rows = cursor.fetchall()
+            if not rows:
+                return {
+                    "fallback": True,
+                    "answer": "Invalid customer_id. Please provide a valid customer_id.",
+                    "missing_fields": ["customer_id"]
+                }
+        elif loan_id:
+            cursor.execute("SELECT * FROM loan_data WHERE loan_id=?", (loan_id,))
+            rows = cursor.fetchall()
+            if not rows:
+                return {
+                    "fallback": True,
+                    "answer": "Invalid loan_id. Please provide a valid loan_id.",
+                    "missing_fields": ["loan_id"]
+                }
+
+        # Generate SQL from NL query
         sql_query = self.nl_to_sql(user_query)
-        logging.info(f"Generated SQL:\n{sql_query}")
         result = self.execute_sql(sql_query)
-        # Fallback for empty result
         if not result.get("rows") and "error" not in result:
             result["fallback"] = True
+
         return result
 
 
@@ -133,5 +199,5 @@ if __name__ == "__main__":
     agent = SQLAgent()
     print("Tables in DB:", agent.list_tables())
     query = "What is my next EMI?"
-    result = agent.handle_query(query)
+    result = agent.handle_query(query, context={"customer_id": "123456"})
     print(result)
