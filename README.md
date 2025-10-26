@@ -173,3 +173,27 @@ POST /ask
 [a relative link](chroma_service/README.md)
 
 
+## Sample Usage:
+
+```bash
+curl -X 'POST' \
+  'https://loan-navigator-456822750436.us-central1.run.app/query' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "query": "What is policy of loan prepayment",
+  "context": {}
+}'
+```
+
+## response:
+```bash
+{
+  "fallback": false,
+  "intent": "policy_query",
+  "answer": "Prepayment is permitted after the 3rd EMI is paid (BlueLoans4all Policy Manual - Page 2). There is no prepayment penalty if the amount is under INR25,000 (BlueLoans4all Policy Manual - Page 2). Full pre-closure attracts a 2% foreclosure fee on the outstanding principal (BlueLoans4all Policy Manual - Page 2). A prepayment calculator is available via the customer portal and chatbot (BlueLoans4all Policy Manual - Page 2). For Top-Up loans, there is NIL prepayment fee if repaid after 3 months and before 6 months, and 2% of remaining principal if pre-closed within first 3 months (Top-Up and Upgrade Policy - Section 4).",
+  "agent_results": {
+    "policy_agent": {
+      "answer": "Prepayment is permitted after the 3rd EMI is paid (BlueLoans4all Policy Manual - Page 2). There is no prepayment penalty if the amount is under INR25,000 (BlueLoans4all Policy Manual - Page 2). Full pre-closure attracts a 2% foreclosure fee on the outstanding principal (BlueLoans4all Policy Manual - Page 2). A prepayment calculator is available via the customer portal and chatbot (BlueLoans4all Policy Manual - Page 2). For Top-Up loans, there is NIL prepayment fee if repaid after 3 months and before 6 months, and 2% of remaining principal if pre-closed within first 3 months (Top-Up and Upgrade Policy - Section 4)."}}
+}
+```
