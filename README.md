@@ -89,7 +89,7 @@ GOOGLE_API_KEY="your key"
 GOOGLE_GENAI_USE_VERTEXAI=True
 GOOGLE_CLOUD_PROJECT=bdc-trainings
 GCP_REGION="us-central1"
-GCP_PROJECT="bdc-training"
+GCP_PROJECT="bdc-trainings"
 
 TAVILY_API_KEY="your key"
 LOAN_DB_BUCKET="loan-navigator-data-6-1"
@@ -127,7 +127,8 @@ POST /ask
 ### Request:
 
 ``` json
-{ "query": "Can I prepay my loan early?" }
+{ "query": "Can I prepay my loan early?",
+"context": "" }
 ```
 
 ### Response:
@@ -164,5 +165,9 @@ POST /ask
 
 ## Maintainers
 
-- **Capstone Team** – 
+- **Capstone Team** – Aravind Madan Mohan, Naveen Babu Sanapala, Yash Singh, Mainak Paul, Piyush Rai
 - **Tech Stack**: Python · Vertex AI · LangGraph · ChromaDB · FastAPI · GCP Cloud Run
+
+## Chroma DB Readme
+
+[a relative link](chroma_service/README.md)

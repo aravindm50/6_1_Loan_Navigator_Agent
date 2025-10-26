@@ -1,25 +1,29 @@
 # supervisor/supervisor_agent.py
 
-import re
 import sys
 import os
+import logging
 
-# Add project root to path
+# Add project root to Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-import logging
 from agents.sql_agent import SQLAgent
 from agents.policy_agent import PolicyGuruAgent
-from agents.calc_agent import WhatIfCalculatorAgent
+from agents.calc_agent import WhatIfCalculatorAgent, LLMNumberExtractor
 from agents.intent_classifier import IntentClassifier
 
 logging.basicConfig(level=logging.INFO)
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
 class SupervisorAgent:
     """
-    Central orchestrator for all agents.
-    Handles user queries, routes to appropriate agents,
-    and manages fallback prompts for missing information.
+    Central orchestrator for all sub-agents.
+    Handles user queries, classifies intent, tracks context across turns,
+    and manages fallback for missing info.
     """
 
     def __init__(self):
@@ -27,126 +31,148 @@ class SupervisorAgent:
         self.policy_agent = PolicyGuruAgent()
         self.calc_agent = WhatIfCalculatorAgent()
         self.intent_classifier = IntentClassifier()
+        self.number_extractor = LLMNumberExtractor()
 
-    def handle_query(self, user_query, context=None):
-        """
-        Handles user query, routes to appropriate agent(s),
-        and returns a structured response.
-        context: optional dict for already known info (e.g., customer_id)
-        """
+    def handle_query(self, user_query: str, context: dict = None) -> dict:
         logging.info(f"Received query: {user_query}")
-        response = {"fallback": False, "intent": None, "answer": None}
         context = context or {}
+        response = {
+            "fallback": False,
+            "intent": None,
+            "answer": None,
+            "agent_results": {},
+            "context": context.copy(),
+            "missing_fields": []
+        }
 
-        # Step 1: Classify intent
+        # Step 1: classify intent
         intent = self.intent_classifier.classify_intent(user_query)
         response["intent"] = intent
 
-        # -----------------------------
-        # SQL Query Handling (EMI / loan data)
-        # -----------------------------
-        if intent == "sql_emi":
-            sql_result = self.sql_agent.handle_query(user_query)
-            response["sql_result"] = sql_result
+        try:
+            # -----------------------------
+            # EMI / SQL fetch
+            # -----------------------------
+            if intent in ["sql_fetch", "calc_emi"]:
+                customer_id = context.get("customer_id")
+                loan_id = context.get("loan_id")
+                missing = []
+                if not customer_id:
+                    missing.append("customer_id")
+                if not loan_id:
+                    missing.append("loan_id")
 
-            if "error" in sql_result or not sql_result.get("rows"):
-                response["fallback"] = True
-                response["answer"] = (
-                    "Could not find relevant loan data. "
-                    "Please provide your customer_id or loan reference."
-                )
+                if missing:
+                    response.update({
+                        "fallback": True,
+                        "answer": "Missing or invalid info. Please provide valid values.",
+                        "missing_fields": missing
+                    })
+                else:
+                    sql_result = self.sql_agent.handle_query(user_query, customer_id=customer_id, loan_id=loan_id)
+                    response["agent_results"]["sql_agent"] = sql_result
+                    if "error" in sql_result or not sql_result.get("rows"):
+                        response.update({
+                            "fallback": True,
+                            "answer": "Could not fetch your loan data. Please check your entries."
+                        })
+                    else:
+                        response["answer"] = f"Your EMI details: {sql_result.get('rows')}"
+
+            # -----------------------------
+            # Prepayment simulation
+            # -----------------------------
+            elif intent == "calc_prepayment":
+                nums = self.number_extractor.extract_numbers(user_query)
+                required = ["loan_amount", "annual_rate", "tenure_months", "prepayment_amount"]
+                missing = [k for k in required if not nums.get(k)]
+                if missing:
+                    response.update({
+                        "fallback": True,
+                        "answer": f"Missing required values for prepayment: {', '.join(missing)}",
+                        "missing_fields": missing
+                    })
+                else:
+                    prepay_result = self.calc_agent.simulate_prepayment(
+                        loan_amount=nums["loan_amount"],
+                        annual_rate=nums["annual_rate"],
+                        tenure_months=int(nums["tenure_months"]),
+                        prepayment_amount=nums["prepayment_amount"],
+                        apply_month=nums.get("apply_month", 1)
+                    )
+                    response.update({"calc_result": prepay_result, "answer": prepay_result})
+
+            # -----------------------------
+            # Tenure change simulation
+            # -----------------------------
+            elif intent == "calc_tenure_change":
+                nums = self.number_extractor.extract_numbers(user_query)
+                required = ["loan_amount", "annual_rate", "tenure_months", "new_tenure_months"]
+                missing = [k for k in required if not nums.get(k)]
+                if missing:
+                    response.update({
+                        "fallback": True,
+                        "answer": f"Missing required values for tenure change: {', '.join(missing)}",
+                        "missing_fields": missing
+                    })
+                else:
+                    tenure_result = self.calc_agent.simulate_tenure_change(
+                        loan_amount=nums["loan_amount"],
+                        annual_rate=nums["annual_rate"],
+                        tenure_months=int(nums["tenure_months"]),
+                        new_tenure_months=int(nums["new_tenure_months"])
+                    )
+                    response.update({"calc_result": tenure_result, "answer": tenure_result})
+
+            # -----------------------------
+            # Top-up eligibility
+            # -----------------------------
+            elif intent == "calc_topup":
+                customer_id = context.get("customer_id")
+                outstanding_principal = context.get("outstanding_principal")
+                missing = []
+                if not customer_id:
+                    missing.append("customer_id")
+                if outstanding_principal is None:
+                    missing.append("outstanding_principal")
+                if missing:
+                    response.update({
+                        "fallback": True,
+                        "answer": f"Missing required values for top-up eligibility: {', '.join(missing)}",
+                        "missing_fields": missing
+                    })
+                else:
+                    topup_result = self.calc_agent.check_topup_eligibility(True, outstanding_principal)
+                    response.update({"calc_result": topup_result, "answer": topup_result})
+
+            # -----------------------------
+            # Policy queries
+            # -----------------------------
+            elif intent == "policy_query":
+                policy_result = self.policy_agent.handle_query(user_query)
+                response["agent_results"]["policy_agent"] = policy_result
+                response["answer"] = policy_result.get("answer")
+                if policy_result.get("fallback"):
+                    response.update({
+                        "fallback": True,
+                        "answer": "Could not confidently answer policy query. Provide more context."
+                    })
+
+            # -----------------------------
+            # Default fallback
+            # -----------------------------
             else:
-                response["answer"] = sql_result.get("rows")
+                response.update({
+                    "fallback": True,
+                    "answer": "Sorry, I did not understand your request. Could you rephrase it?"
+                })
 
-        # -----------------------------
-        # Prepayment Simulation
-        # -----------------------------
-        elif intent == "calc_prepayment":
-            # Attempt to extract numbers from query
-            numbers = [float(x) for x in re.findall(r"\d+(?:\.\d+)?", user_query)]
-            required_fields = ["principal", "annual_rate", "tenure_months", "months_paid", "prepayment_amount"]
+        except Exception as e:
+            logging.error(f"Error during query handling: {e}")
+            response.update({
+                "fallback": True,
+                "answer": f"An error occurred while processing your request: {str(e)}"
+            })
 
-            if len(numbers) == len(required_fields):
-                principal, annual_rate, tenure_months, months_paid, prepayment_amount = numbers
-                result = self.calc_agent.simulate_prepayment(
-                    principal=principal,
-                    annual_rate=annual_rate,
-                    tenure_months=int(tenure_months),
-                    months_paid=int(months_paid),
-                    prepayment_amount=prepayment_amount
-                )
-                response.update({"calc_result": result, "answer": result})
-                if result.get("error"):
-                    response["fallback"] = True
-            else:
-                # Missing values → ask user for them
-                missing_fields = required_fields[len(numbers):]
-                response["fallback"] = True
-                response["answer"] = (
-                    f"To perform prepayment simulation, please provide the following missing information: "
-                    f"{', '.join(missing_fields)}"
-                )
-
-        # -----------------------------
-        # Top-up Eligibility
-        # -----------------------------
-        elif intent == "calc_topup":
-            # Check if customer_id or outstanding principal exists in context
-            customer_id = context.get("customer_id")
-            outstanding_principal = context.get("outstanding_principal")
-
-            if customer_id and outstanding_principal is not None:
-                result = self.calc_agent.check_topup_eligibility(True, outstanding_principal)
-                response.update({"calc_result": result, "answer": result})
-            else:
-                response["fallback"] = True
-                response["answer"] = (
-                    "To check top-up eligibility, please provide your customer_id "
-                    "or outstanding principal amount."
-                )
-
-        # -----------------------------
-        # Policy Queries
-        # -----------------------------
-        elif intent == "policy_query":
-            result = self.policy_agent.handle_query(user_query)
-            response.update({"policy_result": result, "answer": result.get("answer")})
-            if result.get("fallback"):
-                response["fallback"] = True
-                response["answer"] = (
-                    "Could not confidently answer your query. "
-                    "Please provide more context or specify the policy document."
-                )
-
-        # -----------------------------
-        # Unknown Intent
-        # -----------------------------
-        else:
-            response["fallback"] = True
-            response["answer"] = "Sorry, I did not understand your request. Could you clarify?"
-
-        # -----------------------------
-        # Log final response
-        # -----------------------------
-        logging.info(f"Response: {response}")
+        response["context"] = context
         return response
-
-# supervisor_agent.py
-
-if __name__ == "__main__":
-    from agents.intent_classifier import IntentClassifier
-    from agents.sql_agent import SQLAgent
-    from agents.policy_agent import PolicyGuruAgent
-
-    supervisor = SupervisorAgent()
-
-    queries = [
-        "What is my next EMI?",
-        "Can I prepay my loan without penalty?",
-        "Am I eligible for a top-up?",
-        "Tell me the RBI guideline on prepayment."
-    ]
-
-    for q in queries:
-        result = supervisor.handle_query(q)
-        print(f"Query: {q}\nResult: {result}\n")

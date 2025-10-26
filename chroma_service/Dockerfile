@@ -21,5 +21,9 @@ RUN pip install --upgrade pip && \
 
 EXPOSE 8000
 
-# Start ChromaDB server using CLI
-CMD ["chromadb", "server", "--host", "0.0.0.0", "--port", "8000", "--anonymized-telemetry", "false"]
+# Copy startup script
+COPY start_chroma.sh /app/start_chroma.sh
+RUN chmod +x /app/start_chroma.sh
+
+# Start ChromaDB server and populate vector DB at runtime
+CMD ["/app/start_chroma.sh"]
